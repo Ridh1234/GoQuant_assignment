@@ -15,7 +15,7 @@ A high-performance, Python-based cryptocurrency matching engine inspired by Regu
 
 ## System Architecture
 
-![GoQuant Matching Engine Architecture](public/flowchart.png)
+![GoQuant Matching Engine Architecture](public/flowchart1.png)
 
 *High-level architecture diagram showing the complete flow from order submission through matching, real-time data distribution, and persistence. The system processes 2,800+ orders/second with sub-millisecond latency using price-time priority matching.*
 
