@@ -1,0 +1,6 @@
+[
+  {"symbol": "BTC-USD", "side": "sell", "type": "limit", "quantity": "0.5", "price": "30100"},
+  {"symbol": "BTC-USD", "side": "sell", "type": "limit", "quantity": "0.7", "price": "30200"},
+  {"symbol": "BTC-USD", "side": "buy",  "type": "limit", "quantity": "0.3", "price": "29900"},
+  {"symbol": "BTC-USD", "side": "buy",  "type": "market", "quantity": "0.25"}
+]

@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GoQuant Matching Engine — Trading UI</title>
+  <style>
+    :root{
+      --bg:#0e1116; --panel:#151a22; --muted:#a3b1c2; --text:#e6edf3; --accent:#2ea043; --accent2:#f85149;
+      --warn:#f0b429; --border:#222a35; --buy:#2ea043; --sell:#f85149; --highlight:#1f6feb;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+    .app{display:grid;grid-template-columns:320px 1fr 420px;grid-template-rows:auto 1fr;gap:16px;padding:16px;box-sizing:border-box}
+    header{grid-column:1/-1;display:flex;gap:16px;align-items:center;justify-content:space-between}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .title{font-weight:600;margin:0 0 8px 0}
+    label{font-size:.85rem;color:var(--muted)}
+  input,select,button{width:100%;padding:10px;margin-top:6px;margin-bottom:10px;border-radius:8px;border:1px solid var(--border);background:#0c1117;color:var(--text);box-sizing:border-box;height:40px}
+  button{cursor:pointer;border:1px solid #2b323b;background:#0f141a}
+  .btn-connected{background:color-mix(in srgb, var(--buy) 20%, transparent);border-color:var(--buy);color:var(--buy)}
+  .row{display:flex;gap:8px;align-items:flex-end}
+    .row>*{flex:1}
+    .actions button{background:var(--highlight);border-color:#395b9a}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:6px 8px;border-bottom:1px solid var(--border);font-size:.9rem}
+    th{color:var(--muted);text-align:left}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.75rem}
+    .pill.buy{background:color-mix(in srgb, var(--buy) 20%, transparent);color:var(--buy)}
+    .pill.sell{background:color-mix(in srgb, var(--sell) 20%, transparent);color:var(--sell)}
+    .bbo{display:flex;gap:12px}
+    .bbo .box{flex:1;text-align:center;padding:10px;border-radius:8px;background:#0c1117;border:1px solid var(--border)}
+    .bbo .bid{color:var(--buy)}
+    .bbo .ask{color:var(--sell)}
+    .muted{color:var(--muted)}
+    .footer{grid-column:1/-1;text-align:center;color:var(--muted);font-size:.85rem}
+    .ok{color:var(--buy)} .err{color:var(--sell)}
+    .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+    .dot-ok{background:var(--buy)} .dot-bad{background:var(--sell)}
+    .small{font-size:.85rem}
+    code{background:#0c1117;border:1px solid var(--border);padding:2px 4px;border-radius:6px}
+    .section-title{display:flex;justify-content:space-between;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h2 style="margin:0">GoQuant Trading UI</h2>
+        <div class="muted small">FastAPI backend with live market data and trades</div>
+      </div>
+      <div class="row" style="max-width:720px;flex:1">
+        <div class="card" style="flex:1">
+          <div class="section-title"><span class="title">Connection</span><span class="small"><span id="mdDot" class="status-dot dot-bad"></span>Marketdata · <span id="trDot" class="status-dot dot-bad"></span>Trades</span></div>
+          <div class="row">
+            <div>
+              <label>Backend URL</label>
+              <input id="backend" value="http://localhost:8000" />
+            </div>
+            <div>
+              <label>Symbol</label>
+              <input id="symbol" value="BTC-USD" />
+            </div>
+            <div style="align-self:flex-end"><button id="connectBtn">Connect</button></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="card" id="orderEntry">
+      <p class="title">Order Entry</p>
+      <div class="row">
+        <div>
+          <label>Side</label>
+          <select id="side"><option value="buy">Buy</option><option value="sell">Sell</option></select>
+        </div>
+        <div>
+          <label>Type</label>
+          <select id="type">
+            <option value="market">Market</option>
+            <option value="limit" selected>Limit</option>
+            <option value="ioc">IOC</option>
+            <option value="fok">FOK</option>
+            <option value="stop">Stop (Market)</option>
+            <option value="stop_limit">Stop-Limit</option>
+            <option value="take_profit">Take-Profit</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Quantity</label>
+          <input id="qty" type="text" value="0.05" />
+        </div>
+        <div>
+          <label>Price (for Limit/Stop-Limit)</label>
+          <input id="price" type="text" placeholder="e.g. 30000" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Stop Price (Stop/Stop-Limit)</label>
+          <input id="stop_price" type="text" placeholder="e.g. 29900" />
+        </div>
+        <div>
+          <label>Take Profit Price</label>
+          <input id="tp_price" type="text" placeholder="e.g. 36000" />
+        </div>
+      </div>
+      <div class="actions row">
+        <button id="submitBtn">Submit Order</button>
+        <button id="recentBtn" title="Load recent trades via REST">Load Recent Trades</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>Cancel Order ID</label>
+          <input id="cancel_id" placeholder="ord_123" />
+        </div>
+        <div style="align-self:flex-end"><button id="cancelBtn">Cancel</button></div>
+      </div>
+      <div id="resp" class="small muted"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><p class="title">Order Book</p><button id="snapBtn" class="small">Snapshot (REST)</button></div>
+      <div class="bbo">
+        <div class="box bid">
+          <div class="muted small">Best Bid</div>
+          <div id="bestBidPrice">-</div>
+          <div id="bestBidQty" class="muted small">-</div>
+        </div>
+        <div class="box ask">
+          <div class="muted small">Best Ask</div>
+          <div id="bestAskPrice">-</div>
+          <div id="bestAskQty" class="muted small">-</div>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div>
+          <div class="muted small" style="margin-bottom:6px">Bids</div>
+          <table id="bidsTbl"><thead><tr><th>Price</th><th>Quantity</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div>
+          <div class="muted small" style="margin-bottom:6px">Asks</div>
+          <table id="asksTbl"><thead><tr><th>Price</th><th>Quantity</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="title">Trades</p>
+      <table id="tradesTbl"><thead><tr><th>Time</th><th>Px</th><th>Qty</th><th>Side</th><th>Maker</th><th>Taker</th><th>Fees</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <div class="footer">GoQuant Matching Engine · Live test client</div>
+  </div>
+
+  <script>
+    const $ = sel => document.querySelector(sel);
+    const backendEl = $('#backend');
+    const symbolEl = $('#symbol');
+
+  let pollTimer = null;
+  let pollActive = false;
+  let lastTradeId = null;
+  let tradesSeeded = false;
+  let mdConnected = false;
+  let trConnected = false;
+
+    function updateConnectBtn(){
+      const btn = $('#connectBtn');
+      if(mdConnected && trConnected){
+        btn.textContent = 'Connected';
+        btn.title = 'Click to disconnect';
+        btn.classList.add('btn-connected');
+      } else if (pollActive){
+        btn.textContent = 'Connecting...';
+        btn.title = 'Connecting to backend...';
+        btn.classList.remove('btn-connected');
+      } else {
+        btn.textContent = 'Connect';
+        btn.title = 'Click to connect';
+        btn.classList.remove('btn-connected');
+      }
+    }
+
+    function setDot(id, ok){
+      const el = $(id);
+      el.classList.remove('dot-ok','dot-bad');
+      el.classList.add(ok ? 'dot-ok':'dot-bad');
+    }
+
+    function renderBBO(snap){
+      const bids = snap.bids || []; const asks = snap.asks || [];
+      const bestBid = bids.length ? bids[0] : null;
+      const bestAsk = asks.length ? asks[0] : null;
+      $('#bestBidPrice').textContent = bestBid ? bestBid.price : '-';
+      $('#bestBidQty').textContent = bestBid ? bestBid.quantity : '-';
+      $('#bestAskPrice').textContent = bestAsk ? bestAsk.price : '-';
+      $('#bestAskQty').textContent = bestAsk ? bestAsk.quantity : '-';
+    }
+
+    function renderSides(snap){
+      const bidsT = $('#bidsTbl tbody');
+      const asksT = $('#asksTbl tbody');
+      bidsT.innerHTML = '';
+      asksT.innerHTML = '';
+      (snap.bids||[]).forEach(l => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="buy">${l.price}</td><td>${l.quantity}</td>`;
+        bidsT.appendChild(tr);
+      });
+      (snap.asks||[]).forEach(l => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="sell">${l.price}</td><td>${l.quantity}</td>`;
+        asksT.appendChild(tr);
+      });
+    }
+
+    function renderTrades(list, reset=false){
+      const tb = $('#tradesTbl tbody');
+      if(reset){
+        tb.innerHTML = '';
+      }
+      for(const t of list){
+        if(!t || !t.trade_id) continue;
+        if(tb.querySelector(`[data-trade-id="${t.trade_id}"]`)) continue;
+        const sidePill = t.aggressor_side ? `<span class="pill ${t.aggressor_side}">${t.aggressor_side}</span>` : '';
+        const tr = document.createElement('tr');
+        tr.dataset.tradeId = t.trade_id;
+        tr.innerHTML = `
+          <td class="muted small">${t.timestamp||''}</td>
+          <td>${t.price}</td>
+          <td>${t.quantity}</td>
+          <td>${sidePill}</td>
+          <td class="small muted">${t.maker_order_id||''}</td>
+          <td class="small muted">${t.taker_order_id||''}</td>
+          <td class="small muted">M ${t.maker_fee||'0'} · T ${t.taker_fee||'0'}</td>`;
+        tb.prepend(tr);
+        while(tb.children.length>200) tb.removeChild(tb.lastChild);
+      }
+    }
+
+    async function pollOnce(){
+      if(!pollActive) return;
+      const symbol = symbolEl.value.trim();
+      if(!symbol) return;
+      const params = new URLSearchParams({ depth: '10' });
+      if(lastTradeId){
+        params.append('since', lastTradeId);
+      }
+      const firstPass = !tradesSeeded;
+      try{
+        const res = await get(`/poll/${encodeURIComponent(symbol)}?${params.toString()}`);
+        if(res && res.orderbook){
+          renderBBO(res.orderbook);
+          renderSides(res.orderbook);
+        }
+        if(firstPass && res && res.latest_trade_id){
+          lastTradeId = res.latest_trade_id;
+        }
+        if(res && Array.isArray(res.trades) && res.trades.length && !firstPass){
+          renderTrades(res.trades);
+        }
+        if(res && res.latest_trade_id && !firstPass){
+          lastTradeId = res.latest_trade_id;
+        }
+        tradesSeeded = true;
+        mdConnected = true;
+        trConnected = true;
+        setDot('#mdDot', true);
+        setDot('#trDot', true);
+      }catch(err){
+        mdConnected = false;
+        trConnected = false;
+        setDot('#mdDot', false);
+        setDot('#trDot', false);
+        console.error(err);
+      }finally{
+        updateConnectBtn();
+      }
+    }
+
+    function schedulePoll(){
+      if(!pollActive) return;
+      pollTimer = setTimeout(async () => {
+        await pollOnce();
+        schedulePoll();
+      }, 2000);
+    }
+
+    function startPolling(){
+      stopPolling();
+      pollActive = true;
+      lastTradeId = null;
+      tradesSeeded = false;
+      renderTrades([], true);
+      mdConnected = false;
+      trConnected = false;
+      setDot('#mdDot', false);
+      setDot('#trDot', false);
+      updateConnectBtn();
+      pollOnce().then(() => {
+        if(pollActive){
+          schedulePoll();
+        }
+      });
+    }
+
+    function stopPolling(){
+      pollActive = false;
+      if(pollTimer){
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+      tradesSeeded = false;
+      mdConnected = false;
+      trConnected = false;
+      setDot('#mdDot', false);
+      setDot('#trDot', false);
+      updateConnectBtn();
+    }
+
+    async function postJSON(path, body){
+      const base = backendEl.value.trim().replace(/\/$/, '');
+      const r = await fetch(base+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+      if(!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+    async function del(path){
+      const base = backendEl.value.trim().replace(/\/$/, '');
+      const r = await fetch(base+path, { method:'DELETE' });
+      if(!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+    async function get(path){
+      const base = backendEl.value.trim().replace(/\/$/, '');
+      const r = await fetch(base+path);
+      if(!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    function collectOrder(){
+      const type = $('#type').value;
+      const body = {
+        symbol: symbolEl.value.trim(),
+        side: $('#side').value,
+        type,
+        quantity: $('#qty').value.trim()
+      };
+      const px = $('#price').value.trim();
+      const sp = $('#stop_price').value.trim();
+      const tp = $('#tp_price').value.trim();
+
+      if(px) body.price = px;
+      if(sp) body.stop_price = sp;
+      if(tp) body.take_profit_price = tp;
+
+      // hints: stop => need stop_price; stop_limit => needs price + stop_price; take_profit => take_profit_price
+      return body;
+    }
+
+    async function submitOrder(){
+      const body = collectOrder();
+      try{
+        const res = await postJSON('/orders', body);
+        $('#resp').innerHTML = `<span class="ok">OK</span> order_id=<code>${res.order_id}</code> filled=${res.filled_quantity} remaining=${res.remaining_quantity}`;
+        if((res.trades||[]).length){ renderTrades(res.trades); }
+        await snapshot();
+      }catch(e){ $('#resp').innerHTML = `<span class="err">ERR</span> ${e.message}`; }
+    }
+
+    async function cancelOrder(){
+      const id = $('#cancel_id').value.trim(); if(!id) return;
+      try{
+        const res = await del('/orders/'+encodeURIComponent(id));
+        $('#resp').innerHTML = `<span class="ok">Cancelled</span> <code>${res.order_id}</code>`;
+      }catch(e){ $('#resp').innerHTML = `<span class="err">ERR</span> ${e.message}`; }
+    }
+
+    async function loadRecent(){
+      try{
+        const res = await get('/trades/'+encodeURIComponent(symbolEl.value.trim()));
+        renderTrades(res.trades||[], true);
+        if(res.trades && res.trades.length){
+          lastTradeId = res.trades[res.trades.length-1].trade_id;
+        }
+      }catch(e){ $('#resp').innerHTML = `<span class="err">ERR</span> ${e.message}`; }
+    }
+
+    async function snapshot(){
+      try{
+        const res = await get('/orderbook/'+encodeURIComponent(symbolEl.value.trim())+'?depth=10');
+        renderBBO(res); renderSides(res);
+      }catch(e){ $('#resp').innerHTML = `<span class="err">ERR</span> ${e.message}`; }
+    }
+
+    $('#connectBtn').addEventListener('click', () => {
+      if(pollActive){
+        stopPolling();
+        return;
+      }
+      startPolling();
+    });
+    $('#submitBtn').addEventListener('click', submitOrder);
+    $('#cancelBtn').addEventListener('click', cancelOrder);
+    $('#recentBtn').addEventListener('click', loadRecent);
+    $('#snapBtn').addEventListener('click', snapshot);
+
+    // Do not auto-connect on load to avoid duplicate connections/flapping
+  window.addEventListener('load', () => { updateConnectBtn(); renderTrades([], true); });
+  </script>
+</body>
+</html>
